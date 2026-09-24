@@ -1,6 +1,5 @@
 """Yahoo Finance adapters with stable JSON contracts."""
 
-
 import yfinance as yf
 
 
@@ -37,6 +36,8 @@ def asset_info(ticker: str) -> dict:
 
 def historical_returns(tickers: list[str], period: str = "1y") -> dict:
     symbols = [ticker.upper().strip() for ticker in tickers if ticker.strip()]
+    if len(symbols) > 25:
+        raise ValueError("tickers cannot contain more than 25 symbols")
     if not symbols:
         raise ValueError("tickers must contain at least one symbol")
     prices = yf.download(symbols, period=period, auto_adjust=False, progress=False)["Close"]
@@ -49,8 +50,20 @@ def historical_returns(tickers: list[str], period: str = "1y") -> dict:
         "period": period,
         "start_date": str(prices.index[0].date()) if not prices.empty else None,
         "end_date": str(prices.index[-1].date()) if not prices.empty else None,
-        "prices": [{"date": str(index.date()), **{key: _clean(value) for key, value in row.items() if value == value}} for index, row in prices.iterrows()],
-        "daily_returns": [{"date": str(index.date()), **{key: _clean(value) for key, value in row.items() if value == value}} for index, row in returns.iterrows()],
+        "prices": [
+            {
+                "date": str(index.date()),
+                **{key: _clean(value) for key, value in row.items() if value == value},
+            }
+            for index, row in prices.iterrows()
+        ],
+        "daily_returns": [
+            {
+                "date": str(index.date()),
+                **{key: _clean(value) for key, value in row.items() if value == value},
+            }
+            for index, row in returns.iterrows()
+        ],
     }
 
 
@@ -64,5 +77,10 @@ def etf_holdings(ticker: str) -> dict:
     return {
         "ticker": symbol,
         "sector_distribution": {str(key): _clean(value) for key, value in (sectors or {}).items()},
-        "top_holdings": [{"ticker": str(index), "weight": _clean(row.get("Holding Percent"))} for index, row in holdings.iterrows()] if holdings is not None else [],
+        "top_holdings": [
+            {"ticker": str(index), "weight": _clean(row.get("Holding Percent"))}
+            for index, row in holdings.iterrows()
+        ]
+        if holdings is not None
+        else [],
     }

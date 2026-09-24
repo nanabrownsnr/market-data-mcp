@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 from logging import getLogger
+from typing import Literal
 
 from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware as MCPMiddleware
@@ -27,6 +28,7 @@ async def lifespan(server):
         with suppress(asyncio.CancelledError):
             await task
 
+
 mcp = FastMCP(settings.APP_TITLE, lifespan=lifespan)
 
 
@@ -37,7 +39,9 @@ def get_asset_info(ticker: str) -> dict:
 
 
 @mcp.tool
-def get_historical_returns(tickers: list[str], period: str = "1y") -> dict:
+def get_historical_returns(
+    tickers: list[str], period: Literal["1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"] = "1y"
+) -> dict:
     """Download daily prices and decimal returns. Example: get_historical_returns(["VTI", "BND"], period="5y"). Valid periods include 1mo, 6mo, 1y, 5y, and max. Returns dates, prices, and daily_returns."""
     return historical_returns(tickers, period)
 
@@ -56,18 +60,23 @@ class UsageTrackingMiddleware(MCPMiddleware):
             getLogger(__name__).exception("Usage tracking failed")
         return await call_next(context)
 
+
 mcp.add_middleware(UsageTrackingMiddleware())
 register_routes(mcp)
-origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()] or ["*"]
+origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()] or [
+    "*"
+]
 
 app = mcp.http_app(
-    middleware=[Middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["mcp-session-id"],
-    )],
+    middleware=[
+        Middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=["mcp-session-id"],
+        )
+    ],
     transport="streamable-http",
     stateless_http=True,
     json_response=True,
@@ -75,4 +84,5 @@ app = mcp.http_app(
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
